@@ -629,8 +629,32 @@ endfunction
 
 
 " map wrappers  "{{{3
+
+" Neovim 0.12+ defines default mappings for 'an' and 'in' (treesitter
+" incremental selection) in Visual and Operator-pending modes.  These default
+" mappings conflict with text objects that use the same lhs.  The <unique>
+" flag in :map prevents overriding them, so we must remove such built-in
+" defaults before creating our mappings.
+"
+" Neovim default mappings have a Lua callback and are defined in
+" vim/_core/defaults.lua.  We detect them by checking for the callback key in
+" maparg() output -- Neovim default mappings always use Lua callbacks, while
+" traditional Vim/VimScript user mappings do not.  This heuristic may also
+" clear user-defined Lua mappings, but that is acceptable because:
+" (a) the plugin author has explicitly chosen these key bindings, and
+" (b) users who want custom mappings can set *no-default-key-mappings*.
+function! s:remove_default_mapping_if_exists(mode, lhs)
+  let info = maparg(a:lhs, a:mode, 0, 1)
+  if !empty(info) && has_key(info, 'callback')
+    silent! execute a:mode . 'unmap' a:lhs
+  endif
+endfunction
+
 function! s:_map(map_commands, forced_p, lhs, rhs)
   for _ in a:map_commands
+    if !a:forced_p
+      call s:remove_default_mapping_if_exists(_[0], a:lhs)
+    endif
     execute 'silent!' (_) (a:forced_p ? '' : '<unique>') a:lhs
     \       substitute(a:rhs, '<mode>', _[0], 'g')
   endfor
